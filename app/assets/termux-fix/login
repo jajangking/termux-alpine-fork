@@ -88,7 +88,7 @@ if [ -x "$ROOT/bin/busybox" ]; then
       https://dl-cdn.alpinelinux.org/alpine/latest-stable/community \
       > "$ROOT/etc/apk/repositories"
   fi
-  if [ ! -x "$ROOT/usr/bin/curl" ] && [ -x "$PRE/bin/proot" ]; then
+  if { [ ! -x "$ROOT/usr/bin/python3" ] || [ ! -x "$ROOT/usr/bin/curl" ]; } && [ -x "$PRE/bin/proot" ]; then
     if [ ! -f "$FIX/.provisioning" ]; then
       touch "$FIX/.provisioning"
       {
