@@ -18,7 +18,7 @@ export PROOT_TMP_DIR=$PREFIX/tmp
 export PROOT_LOADER=$PREFIX/libexec/proot/loader
 unset LD_PRELOAD
 R=$PREFIX/var/lib/proot-distro/installed-rootfs/alpine
-exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -w /root /bin/sh -l
+exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -b /sdcard:/sdcard -w /root /bin/sh -l
 ENDWRAP
 chmod 0700 "$HOME/.termux/shell"
 fi
@@ -41,7 +41,7 @@ if [ -x "$ROOT/bin/busybox" ]; then
   fi
   if [ ! -x "$ROOT/usr/bin/curl" ] && [ -x "$PRE/bin/proot" ]; then
     "$PRE/bin/proot" -0 -r "$ROOT" -b /dev -b /proc -b /sys \
-      /bin/sh -c 'apk update >/dev/null 2>&1; apk add --no-cache bash curl git ripgrep python3 make libffi-dev >/dev/null 2>&1' \
+      /bin/sh -c 'apk update >/dev/null 2>&1; apk add --no-cache bash curl git ripgrep python3 make libffi-dev gcompat libc6-compat >/dev/null 2>&1' \
       >/dev/null 2>&1
     touch "$FIX/.provisioned"
   fi
