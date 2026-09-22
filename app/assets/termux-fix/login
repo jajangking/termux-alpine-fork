@@ -42,9 +42,16 @@ if [ ! -x "$ROOT/bin/busybox" ]; then
     tar -xzf "$FIX/rootfs-mini.tar.gz" -C "$ROOT"
   else
     echo "rootfs not bundled, downloading..." >&2
-    "$PRE/bin/curl" -L --fail --max-time 600 -A "TermuxFork" \
-      -o "$FIX/rootfs-mini.tar.zst" "$ROOTFS_URL"
-    tar --zstd -xf "$FIX/rootfs-mini.tar.zst" -C "$ROOT"
+    if [ -f "$PRE/etc/tls/cert.pem" ]; then
+      export CURL_CA_BUNDLE="$PRE/etc/tls/cert.pem"
+    fi
+    if "$PRE/bin/curl" -L --fail --max-time 600 -A "TermuxFork" \
+      -o "$FIX/rootfs-mini.tar.zst" "$ROOTFS_URL"; then
+      tar --zstd -xf "$FIX/rootfs-mini.tar.zst" -C "$ROOT"
+    else
+      rm -f "$FIX/rootfs-mini.tar.zst"
+      echo "rootfs download failed; retry on next open" >&2
+    fi
   fi
 fi
 
