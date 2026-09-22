@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 """termux-api client for the Alpine fork (com.termux.alpine.api).
 
 Talks to the API app over its listen socket. Back-connect sockets are
