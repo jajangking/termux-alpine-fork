@@ -40,9 +40,10 @@ if [ -x "$ROOT/bin/busybox" ]; then
       > "$ROOT/etc/apk/repositories"
   fi
   if [ ! -x "$ROOT/usr/bin/curl" ] && [ -x "$PRE/bin/proot" ]; then
+    printf '=== provision %s ===\n' "$(date '+%F %T')" >>"$FIX/provision.log"
     "$PRE/bin/proot" -0 -r "$ROOT" -b /dev -b /proc -b /sys \
-      /bin/sh -c 'apk update >/dev/null 2>&1; apk add --no-cache bash curl git ripgrep python3 make libffi-dev gcompat libc6-compat >/dev/null 2>&1' \
-      >/dev/null 2>&1
+      /bin/sh -c 'apk update; apk add --no-cache bash curl git ripgrep python3 make libffi-dev gcompat libc6-compat' \
+      >>"$FIX/provision.log" 2>&1
     touch "$FIX/.provisioned"
   fi
 fi
