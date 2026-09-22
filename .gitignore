@@ -1,2 +1,3 @@
 *.idsig
-dist/*-unsigned.apk
+dist/*.apk
+api-app/build/
