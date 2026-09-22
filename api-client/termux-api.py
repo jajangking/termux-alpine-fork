@@ -106,6 +106,22 @@ def pump_sock_to_stdout(conn):
     return got_fd
 
 
+def real_uid():
+    """Real uid, bypassing proot -0 which fakes getuid() -> 0.
+
+    proot intercepts getuid/geteuid syscalls but NOT /proc, so the kernel
+    uid used by SO_PEERCRED (server side, real creds) matches this value.
+    """
+    try:
+        with open('/proc/self/status', 'rb') as f:
+            for line in f:
+                if line.startswith(b'Uid:'):
+                    return int(line.split()[1])
+    except Exception:
+        pass
+    return os.getuid()
+
+
 def main(argv):
     if len(argv) == 2 and argv[1] == '--version':
         sys.stdout.write(VERSION + '\n')
@@ -125,7 +141,7 @@ def main(argv):
     outs.listen(1)
 
     ppid = os.getppid()
-    uid = os.getuid()
+    uid = real_uid()
     starttime = proc_starttime(ppid)
     msg = build_message(argv, in_uuid, out_uuid, ppid, uid, starttime)
 
@@ -144,7 +160,8 @@ def main(argv):
     except OSError:
         peer_uid = -1
     if peer_uid != uid:
-        sys.stderr.write('termux-api: socket peer uid mismatch\n')
+        sys.stderr.write('termux-api: socket peer uid mismatch '
+                         '(client=%d peer=%d mapped by proot -0)\n' % (uid, peer_uid))
         return 1
 
     try:
