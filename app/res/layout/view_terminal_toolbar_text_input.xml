@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<EditText android:textColor="@android:color/white" android:textColorHighlight="@android:color/darker_gray" android:id="@id/terminal_toolbar_text_input" android:paddingTop="0.0dp" android:paddingBottom="0.0dp" android:layout_width="match_parent" android:layout_height="match_parent" android:maxLines="1" android:inputType="text" android:imeOptions="actionSend|flagNoFullscreen" android:textCursorDrawable="@null" android:importantForAutofill="no"
+  xmlns:android="http://schemas.android.com/apk/res/android" />

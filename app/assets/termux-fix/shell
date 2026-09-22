@@ -1,0 +1,10 @@
+#!/data/data/com.termux.alpine/files/usr/bin/bash
+PREFIX=/data/data/com.termux.alpine/files/usr
+export LD_LIBRARY_PATH=$PREFIX/lib
+export PATH=$PREFIX/bin:/system/bin
+export TMPDIR=$PREFIX/tmp
+export PROOT_TMP_DIR=$PREFIX/tmp
+export PROOT_LOADER=$PREFIX/libexec/proot/loader
+unset LD_PRELOAD
+R=$PREFIX/var/lib/proot-distro/installed-rootfs/alpine
+exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -w /root /bin/sh -l

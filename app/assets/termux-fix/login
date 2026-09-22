@@ -1,0 +1,51 @@
+#!/data/data/com.termux.alpine/files/usr/bin/sh
+BASE=/data/data/com.termux.alpine/files
+PRE=$BASE/usr
+FIX=$BASE/fix
+DEST=$PRE/var/lib/proot-distro/installed-rootfs
+ROOT=$DEST/alpine
+
+mkdir -p "$HOME/.termux" "$FIX" "$ROOT"
+
+if [ ! -f "$HOME/.termux/shell" ]; then
+cat > "$HOME/.termux/shell" <<'ENDWRAP'
+#!/data/data/com.termux.alpine/files/usr/bin/bash
+PREFIX=/data/data/com.termux.alpine/files/usr
+export LD_LIBRARY_PATH=$PREFIX/lib
+export PATH=$PREFIX/bin:/system/bin
+export TMPDIR=$PREFIX/tmp
+export PROOT_TMP_DIR=$PREFIX/tmp
+export PROOT_LOADER=$PREFIX/libexec/proot/loader
+unset LD_PRELOAD
+R=$PREFIX/var/lib/proot-distro/installed-rootfs/alpine
+exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -w /root /bin/sh -l
+ENDWRAP
+chmod 0700 "$HOME/.termux/shell"
+fi
+
+if [ ! -x "$PRE/bin/proot" ] && [ -f "$FIX/proot.tar.gz" ]; then
+  tar -xzf "$FIX/proot.tar.gz" -C "$PRE"
+fi
+
+if [ ! -x "$ROOT/bin/busybox" ] && [ -f "$FIX/rootfs-mini.tar.gz" ]; then
+  tar -xzf "$FIX/rootfs-mini.tar.gz" -C "$ROOT"
+fi
+
+if [ -x "$ROOT/bin/busybox" ]; then
+  printf 'nameserver 8.8.8.8\nnameserver 1.1.1.1\n' > "$ROOT/etc/resolv.conf"
+  if [ ! -f "$ROOT/etc/apk/repositories" ]; then
+    printf '%s\n' \
+      https://dl-cdn.alpinelinux.org/alpine/v3.20/main \
+      https://dl-cdn.alpinelinux.org/alpine/v3.20/community \
+      > "$ROOT/etc/apk/repositories"
+  fi
+  if [ ! -x "$ROOT/usr/bin/curl" ] && [ -x "$PRE/bin/proot" ]; then
+    "$PRE/bin/proot" -0 -r "$ROOT" -b /dev -b /proc -b /sys \
+      /bin/sh -c 'apk update >/dev/null 2>&1; apk add --no-cache bash curl git ripgrep python3 make libffi-dev >/dev/null 2>&1' \
+      >/dev/null 2>&1
+    touch "$FIX/.provisioned"
+  fi
+fi
+
+export LD_LIBRARY_PATH=$PRE/lib
+exec "$HOME/.termux/shell" -l "$@"
