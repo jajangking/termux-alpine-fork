@@ -63,7 +63,7 @@
 
     invoke-direct {p0}, Ljava/lang/StringBuilder;-><init>()V
 
-    const-string p1, "Ignoring call to sendPluginCommandErrorNotification() since failed to get \"com.termux\" package context from \""
+    const-string p1, "Ignoring call to sendPluginCommandErrorNotification() since failed to get \"com.termux.alpine\" package context from \""
 
     invoke-virtual {p0, p1}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
 

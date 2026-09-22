@@ -1485,6 +1485,8 @@
 
     invoke-static {v1, v2, v0}, Lcom/termux/shared/logger/Logger;->logStackTraceWithMessage(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)V
 
+    invoke-static {v2, v0}, Lcom/termux/api/util/ApiCrashHandler;->log(Ljava/lang/String;Ljava/lang/Throwable;)V
+
     .line 72
     const-string v3, "Termux:API Error"
 

@@ -126,7 +126,7 @@
 
     move-result v0
 
-    const-string v1, "com.termux"
+    const-string v1, "com.termux.alpine"
 
     if-eqz v0, :cond_2
 
