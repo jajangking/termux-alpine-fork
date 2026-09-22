@@ -31,10 +31,10 @@ if [ ! -x "$ROOT/bin/busybox" ] && [ -f "$FIX/rootfs-mini.tar.gz" ]; then
   tar -xzf "$FIX/rootfs-mini.tar.gz" -C "$ROOT"
 fi
 
-if [ ! -f "$FIX/.api-cli" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
+if [ ! -f "$FIX/.api-cli2" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
   tar -xzf "$FIX/api-cli.tar.gz" -C "$PRE"
-  chmod 0755 "$PRE"/bin/termux-* "$PRE"/libexec/termux-api-broadcast "$PRE"/libexec/termux-callback 2>/dev/null
-  touch "$FIX/.api-cli"
+  chmod 0755 "$PRE"/bin/termux-* "$PRE"/libexec/termux-api 2>/dev/null
+  touch "$FIX/.api-cli2"
 fi
 
 if [ -x "$ROOT/bin/busybox" ]; then
