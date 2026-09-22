@@ -1,0 +1,59 @@
+#!/bin/sh
+# Self-test for the Alpine <-> Android API bridge. Run INSIDE the Alpine guest.
+# Prints OK/FAIL per stage and finishes with a verdict.
+API=/usr/libexec/termux-api
+fail=0
+say() { printf '%s\n' "$*"; }
+ok() { say "  OK: $*"; }
+bad() { say "  FAIL: $*"; fail=1; }
+
+say "[1/5] python3"
+if command -v python3 >/dev/null 2>&1; then
+  ok "$(python3 -V 2>&1)"
+else
+  bad "python3 missing -> run: apk add python3 (open the app again to auto-provision)"
+fi
+
+say "[2/5] client deployed"
+if [ -x "$API" ]; then
+  ok "$API ($(python3 "$API" --version 2>/dev/null || echo '?'))"
+else
+  bad "$API missing/not executable -> reopen the app so login redeploys api-cli"
+fi
+
+say "[3/5] socket dir writable (TMPDIR=${TMPDIR:-/tmp})"
+probe="${TMPDIR:-/tmp}/.api-selftest-$$"
+if ( : > "$probe" ) 2>/dev/null; then rm -f "$probe"; ok "writable"; else bad "not writable"; fi
+
+say "[4/5] API app listen socket reachable (uid $(awk '/^Uid:/{print $2}' /proc/self/status 2>/dev/null || echo '?'))"
+ver=$(python3 "$API" --version 2>/dev/null) || ver=""
+if [ -n "$ver" ]; then ok "client runs, protocol $ver"; fi
+out=$(timeout 30 python3 "$API" BatteryStatus 2>&1); rc=$?
+if [ $rc -eq 0 ]; then
+  case "$out" in
+    *\{*) ok "API app answered" ;;
+    *) ok "API app reachable (empty result)" ;;
+  esac
+elif [ $rc -eq 124 ]; then
+  bad "timed out -> open the Alpine API app once / disable battery restriction for it"
+else
+  say "$out" | head -3
+  bad "not reachable -> open the Alpine API app once, then retry"
+fi
+
+say "[5/5] battery data"
+if [ $rc -eq 0 ] && [ -n "$out" ]; then
+  echo "$out" | head -2 | sed 's/^/  /'
+  ok "termux-battery-status works"
+else
+  say "  SKIP: depends on [4/5]"
+  fail=1
+fi
+
+if [ $fail -eq 0 ]; then
+  say "SELFTEST: PASS - Android APIs (battery, camera, ...) are usable from Alpine."
+else
+  say "SELFTEST: FAIL - see FAIL lines above; errors from the API app are appended to:"
+  say "  ~/.termux/alpine-api-crash.txt"
+fi
+exit $fail

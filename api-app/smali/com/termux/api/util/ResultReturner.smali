@@ -76,7 +76,7 @@
     if-eqz v0, :cond_2
 
     .line 205
-    const-string v0, "com.termux"
+    const-string v0, "com.termux.alpine"
 
     invoke-static {p0, v0}, Lcom/termux/shared/android/PackageUtils;->getApplicationInfoForPackage(Landroid/content/Context;Ljava/lang/String;)Landroid/content/pm/ApplicationInfo;
 
@@ -89,7 +89,9 @@
 
     const-string v0, "/data/data/com.termux"
 
-    filled-new-array {p0, v0}, [Ljava/lang/String;
+    const-string v1, "/data/data/com.termux.alpine"
+
+    filled-new-array {p0, v0, v1}, [Ljava/lang/String;
 
     move-result-object p0
 
@@ -153,7 +155,7 @@
     :cond_1
     new-instance p0, Ljava/lang/RuntimeException;
 
-    const-string p1, "Failed to get ApplicationInfo for the Termux app package: com.termux"
+    const-string p1, "Failed to get ApplicationInfo for the Termux app package: com.termux.alpine"
 
     invoke-direct {p0, p1}, Ljava/lang/RuntimeException;-><init>(Ljava/lang/String;)V
 
@@ -527,6 +529,8 @@
     :cond_9
     :goto_8
     invoke-static {v2, p1, p0}, Lcom/termux/shared/logger/Logger;->logStackTraceWithMessage(Ljava/lang/String;Ljava/lang/String;Ljava/lang/Throwable;)V
+
+    invoke-static {p1, p0}, Lcom/termux/api/util/ApiCrashHandler;->log(Ljava/lang/String;Ljava/lang/Throwable;)V
 
     .line 290
     sget-object p5, Lcom/termux/api/util/ResultReturner;->context:Landroid/content/Context;

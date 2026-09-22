@@ -525,7 +525,7 @@
 
     move-result-object v1
 
-    const-string v2, "com.termux"
+    const-string v2, "com.termux.alpine"
 
     invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
 
@@ -1113,7 +1113,7 @@
     .locals 1
 
     .line 63
-    const-string v0, "com.termux"
+    const-string v0, "com.termux.alpine"
 
     invoke-static {p0, v0}, Lcom/termux/shared/android/PackageUtils;->getContextForPackage(Landroid/content/Context;Ljava/lang/String;)Landroid/content/Context;
 

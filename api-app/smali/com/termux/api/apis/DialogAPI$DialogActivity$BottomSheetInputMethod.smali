@@ -161,7 +161,7 @@
     aget-object v4, v1, v2
 
     .line 732
-    const-string v5, "com.termux"
+    const-string v5, "com.termux.alpine"
 
     invoke-virtual {v4, v5}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
 

@@ -2,11 +2,25 @@
 """termux-api client for the Alpine fork (com.termux.alpine.api).
 
 Talks to the API app over its listen socket. Back-connect sockets are
-FILESYSTEM-mode, not abstract: the API app process cannot reliably reach
-an abstract socket bound by a proot guest on this device (Connection
-refused). Filesystem sockets live under $PREFIX/tmp, a path identical in
-guest and host (proot binds "$PREFIX:$PREFIX"), so the server connects to
-the same host path. Protocol mirrors termux-api-package 0.60.0.
+FILESYSTEM-mode, not abstract: filesystem sockets live under $PREFIX/tmp,
+a path identical in guest and host (proot binds "$PREFIX:$PREFIX"), so the
+server connects to the same host path the guest bound.
+
+Protocol mirrors termux-api-package 0.60.0 (termux-api.c) EXACTLY:
+
+- The listen-socket reply is a single NUL byte written by SocketListener
+  IMMEDIATELY after it broadcasts the intent -- i.e. long before the API
+  call itself finishes. A client must therefore NEVER exit after the NUL;
+  the actual result arrives later on the back-connect socket. (Exiting
+  early was the "Connection refused" root cause: the server connected
+  back to sockets whose listener was already gone.)
+
+- Channel naming is from the SERVER's perspective
+  ("Input/output are reversed for the java process" -- upstream comment):
+    * extra "socket_output" = socket the server WRITES the result to.
+      Client accepts on it and pumps to stdout (plus SCM_RIGHTS fd).
+    * extra "socket_input"  = socket the server READS stdin from (WithInput
+      APIs, e.g. ClipboardSet). Client accepts on it and forwards fd 0.
 """
 import os
 import sys
@@ -17,7 +31,14 @@ import uuid
 
 SERVER_ADDR = "com.termux.alpine.api://listen"
 VERSION = "0.60.0"
-ACCEPT_TIMEOUT = 15
+# How long the stdin-forwarding thread waits for the server to pick up
+# the stdin channel before giving up quietly (interactive APIs connect
+# it only after producing/while producing their result).
+STDIN_ACCEPT_TIMEOUT = 15
+
+
+def eprint(*args):
+    sys.stderr.write(' '.join(str(a) for a in args) + '\n')
 
 
 def socket_dir():
@@ -32,10 +53,12 @@ def socket_dir():
     return d
 
 
-def build_message(argv, in_uuid, out_uuid, pid, uid, starttime):
+def build_message(argv, results_path, stdin_path, pid, uid, starttime):
+    """Extras follow upstream termux-api.c channel mapping:
+    socket_input = our stdin channel, socket_output = our results channel."""
     parts = []
-    parts.append('--es socket_input "%s" ' % in_uuid)
-    parts.append('--es socket_output "%s" ' % out_uuid)
+    parts.append('--es socket_input "%s" ' % stdin_path)
+    parts.append('--es socket_output "%s" ' % results_path)
     parts.append('--ei api_server_pid %d ' % pid)
     parts.append('--ei api_server_uid %d ' % uid)
     parts.append('--ei api_server_starttime %d ' % starttime)
@@ -68,6 +91,71 @@ def proc_starttime(pid):
         return 4294967295  # (unsigned)-1 like the C code
 
 
+def real_uid():
+    """Real uid, bypassing proot -0 which fakes getuid() -> 0.
+
+    proot intercepts getuid/geteuid syscalls but NOT /proc, so the kernel
+    uid used by SO_PEERCRED (server side, real creds) matches this value.
+    """
+    try:
+        with open('/proc/self/status', 'rb') as f:
+            for line in f:
+                if line.startswith(b'Uid:'):
+                    return int(line.split()[1])
+    except Exception:
+        pass
+    return os.getuid()
+
+
+def listen_at(path):
+    """Bind a filesystem socket for the server to back-connect to."""
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.bind(path)
+    os.chmod(path, 0o666)
+    s.listen(1)
+    return s
+
+
+def read_status(sock, died):
+    """Phase 1: consume the listen-socket reply.
+
+    A single leading NUL byte = the intent was accepted and broadcast;
+    anything else is an error message. ANY reply arrives before the API
+    call runs, so this function never signals "result ready" -- it only
+    detects hard failure (EOF/error without the success marker).
+    """
+    first = True
+    ok = False
+    try:
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            if first and chunk == b'\x00':
+                ok = True
+                # Keep draining until the server closes the connection.
+                continue
+            first = False
+            try:
+                os.write(2, chunk)
+            except OSError:
+                pass
+    except OSError:
+        pass
+    finally:
+        try:
+            sock.close()
+        except OSError:
+            pass
+    if not ok:
+        # No success marker and no results will ever come. Unblock main.
+        died.set()
+
+
 def pump_stdin_to_sock(sock):
     try:
         while True:
@@ -87,8 +175,18 @@ def pump_stdin_to_sock(sock):
             pass
 
 
+def accept_stdin(listener):
+    """SocketInput channel: the server connects here to read our stdin."""
+    try:
+        listener.settimeout(STDIN_ACCEPT_TIMEOUT)
+        conn, _ = listener.accept()
+    except OSError:
+        return
+    pump_stdin_to_sock(conn)
+
+
 def pump_sock_to_stdout(conn):
-    """Forward accepted input-socket to stdout, collecting an SCM_RIGHTS fd."""
+    """Phase 3: results channel -> stdout, collecting an SCM_RIGHTS fd."""
     got_fd = -1
     try:
         while True:
@@ -121,143 +219,120 @@ def pump_sock_to_stdout(conn):
     return got_fd
 
 
-def real_uid():
-    """Real uid, bypassing proot -0 which fakes getuid() -> 0.
-
-    proot intercepts getuid/geteuid syscalls but NOT /proc, so the kernel
-    uid used by SO_PEERCRED (server side, real creds) matches this value.
-    """
-    try:
-        with open('/proc/self/status', 'rb') as f:
-            for line in f:
-                if line.startswith(b'Uid:'):
-                    return int(line.split()[1])
-    except Exception:
-        pass
-    return os.getuid()
-
-
 def main(argv):
     if len(argv) == 2 and argv[1] == '--version':
         sys.stdout.write(VERSION + '\n')
         return 0
     if len(argv) < 2:
-        sys.stderr.write('Usage: termux-api API_METHOD [args...]\n')
+        eprint('Usage: termux-api API_METHOD [args...]')
         return 1
 
-    in_uuid = uuid.uuid4().hex
-    out_uuid = uuid.uuid4().hex
+    tag = uuid.uuid4().hex[:16]
     sockdir = socket_dir()
-    in_path = os.path.join(sockdir, 'api-in-%s.sock' % in_uuid)
-    out_path = os.path.join(sockdir, 'api-out-%s.sock' % out_uuid)
+    # socket_output: server -> client (results);  socket_input: client -> server (stdin)
+    results_path = os.path.join(sockdir, 'api-out-%s.sock' % tag)
+    stdin_path = os.path.join(sockdir, 'api-in-%s.sock' % tag)
 
-    ins = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    ins.bind(in_path)
-    os.chmod(in_path, 0o666)
-    ins.listen(1)
-    outs = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    outs.bind(out_path)
-    os.chmod(out_path, 0o666)
-    outs.listen(1)
-
-    ppid = os.getppid()
-    uid = real_uid()
-    starttime = proc_starttime(ppid)
-    msg = build_message(argv, in_path, out_path, ppid, uid, starttime)
-
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    results_listener = None
+    stdin_listener = None
     try:
-        s.connect('\0' + SERVER_ADDR)
-    except OSError as e:
-        sys.stderr.write('termux-api: cannot connect to API app socket: %s\n' % e)
-        sys.stderr.write('(open the Alpine API app once, then retry)\n')
-        return 1
-    try:
-        fmt = 'iii'
-        cred = s.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED,
-                            struct.calcsize(fmt))
-        _, _, peer_uid = struct.unpack(fmt, cred)
-    except OSError:
-        peer_uid = -1
-    if peer_uid != uid:
-        sys.stderr.write('termux-api: socket peer uid mismatch '
-                         '(client=%d peer=%d mapped by proot -0)\n' % (uid, peer_uid))
-        return 1
+        results_listener = listen_at(results_path)
+        stdin_listener = listen_at(stdin_path)
 
-    try:
-        s.sendall(struct.pack('!H', len(msg)) + msg)
-    except OSError as e:
-        sys.stderr.write('termux-api: send failed: %s\n' % e)
-        return 1
+        ppid = os.getppid()
+        uid = real_uid()
+        starttime = proc_starttime(ppid)
+        msg = build_message(argv, results_path, stdin_path, ppid, uid, starttime)
 
-    # Phase 1: main-socket status. Single leading NUL = silent success.
-    first = True
-    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            s.connect('\0' + SERVER_ADDR)
+        except OSError as e:
+            eprint('termux-api: cannot connect to API app socket: %s' % e)
+            eprint('(open the Alpine API app once, keep it running, then retry)')
+            return 1
+        try:
+            cred = s.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED,
+                                struct.calcsize('iii'))
+            _, _, peer_uid = struct.unpack('iii', cred)
+        except OSError:
+            peer_uid = -1
+        if peer_uid != uid:
+            eprint('termux-api: socket peer uid mismatch '
+                   '(client=%d peer=%d; is the API app the com.termux.alpine fork?)'
+                   % (uid, peer_uid))
+            return 1
+
+        try:
+            s.sendall(struct.pack('!H', len(msg)) + msg)
+        except OSError as e:
+            eprint('termux-api: send failed: %s' % e)
+            return 1
+
+        died = threading.Event()
+        t_status = threading.Thread(target=read_status, args=(s, died), daemon=True)
+        t_status.start()
+
+        t_stdin = threading.Thread(target=accept_stdin, args=(stdin_listener,), daemon=True)
+        t_stdin.start()
+
+        # Phase 2/3: the server connects back on the results channel.
+        # Block without a fixed timeout (interactive APIs like dialog wait
+        # for the user), but bail out if the listen channel reported a
+        # fatal error meanwhile.
+        got_fd = -1
         while True:
-            chunk = s.recv(4096)
-            if not chunk:
-                break
-            if first and chunk == b'\x00':
-                return 0
-            first = False
+            results_listener.settimeout(0.5)
             try:
-                os.write(2, chunk)
+                conn, _ = results_listener.accept()
+            except socket.timeout:
+                if died.is_set():
+                    eprint('termux-api: API app did not accept the command '
+                           '(see message above)')
+                    return 1
+                continue
+            except OSError:
+                eprint('termux-api: failed accepting results connection')
+                return 1
+            got_fd = pump_sock_to_stdout(conn)
+            break
+
+        t_status.join(timeout=5)
+        if died.is_set():
+            return 1
+        t_stdin.join(timeout=5)
+
+        # Callback equivalent: dump any passed fd to stdout, in-process.
+        if got_fd != -1:
+            try:
+                while True:
+                    data = os.read(got_fd, 4096)
+                    if not data:
+                        break
+                    try:
+                        os.write(1, data)
+                    except OSError:
+                        break
             except OSError:
                 pass
-    except OSError:
-        pass
-    finally:
-        try:
-            s.close()
-        except OSError:
-            pass
-
-    # Phase 2: server connects back on our sockets.
-    ins.settimeout(ACCEPT_TIMEOUT)
-    outs.settimeout(ACCEPT_TIMEOUT)
-    try:
-        in_conn, _ = ins.accept()
-    except OSError:
-        in_conn = None
-    t = None
-    if True:
-        def accept_out():
-            try:
-                out_conn, _ = outs.accept()
-            except OSError:
-                return
-            pump_stdin_to_sock(out_conn)
-        t = threading.Thread(target=accept_out, daemon=True)
-        t.start()
-    got_fd = pump_sock_to_stdout(in_conn) if in_conn is not None else -1
-    if t is not None:
-        t.join(timeout=5)
-
-    for p in (in_path, out_path):
-        try:
-            os.unlink(p)
-        except OSError:
-            pass
-
-    # Callback equivalent: dump any passed fd to stdout, in-process.
-    if got_fd != -1:
-        try:
-            while True:
-                data = os.read(got_fd, 4096)
-                if not data:
-                    break
+            finally:
                 try:
-                    os.write(1, data)
+                    os.close(got_fd)
                 except OSError:
-                    break
-        except OSError:
-            pass
-        finally:
+                    pass
+        return 0
+    finally:
+        for lst in (results_listener, stdin_listener):
+            if lst is not None:
+                try:
+                    lst.close()
+                except OSError:
+                    pass
+        for p in (results_path, stdin_path):
             try:
-                os.close(got_fd)
+                os.unlink(p)
             except OSError:
                 pass
-    return 0
 
 
 if __name__ == '__main__':

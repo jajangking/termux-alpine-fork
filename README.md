@@ -45,6 +45,12 @@ untuk `apk add bash curl git ...` di dalam rootfs). Session pertama memang agak 
 
 ## Riwayat versi
 
+- **v17** — **fix akses API Android (kamera, baterai, dsb) dari Alpine**: client `termux-api`
+  ditulis ulang sesuai protokol upstream 0.60.0 (bug lama: client exit lebih dulu saat ack
+  NUL + channel socket_input/output tertukar → server selalu "Connection refused").
+  API app: 8 literal paket di-rebrand + direktori socket `/data/data/com.termux.alpine`
+  diizinkan + `ApiCrashHandler` (error API app tampil di `~/.termux/alpine-api-crash.txt`).
+  Cek dengan `alpine-api-selftest` di dalam guest. Detail: `HANDOFF-ARENA-AI.md`.
 - **v13** — wrapper proot bind `$PREFIX` + `/system` ke guest → CLI `termux-*` bisa jalan
   dari dalam Alpine; `api-cli.tar.gz` (helper terkompil ulang + script tersed) dibake.
 - **v12** — `api-cli.tar.gz` dibake + auto-extract saat provisioning.
@@ -81,6 +87,11 @@ jarsigner -keystore keys/fork-alpine-keystore-v7.jks -storepass "$STOREPASS" \
 ```
 
 Install: pasang `dist/alpine-api-signed.apk` berdampingan dengan app utama (jangan
-uninstall `com.termux.api` original — tidak bentrok). Buka sekali, grant permission
-per API sesuai kebutuhan. Tes dari session Alpine: `termux-vibrate -d 200`,
-`termux-toast halo`.
+uninstall `com.termux.api` original — tidak bentrok). **Buka app "Alpine API" sekali**
+(paksa-berhenti/hidden = API mati; biarkan unrestricted di battery settings), grant
+permission per API sesuai kebutuhan. Verifikasi dari session Alpine:
+`alpine-api-selftest` lalu `termux-battery-status`, `termux-vibrate -d 200`,
+`termux-camera-photo /sdcard/foto.jpg`.
+
+Error API app bisa dibaca dari guest: `cat ~/.termux/alpine-api-crash.txt`.
+Build API app: `bash build-api.sh fix3`.

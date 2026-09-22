@@ -109,7 +109,7 @@
     invoke-direct {v2, v3, v4}, Landroid/content/Intent;-><init>(Ljava/lang/String;Landroid/net/Uri;)V
 
     .line 289
-    const-string v3, "com.termux"
+    const-string v3, "com.termux.alpine"
 
     const-string v4, "com.termux.app.TermuxService"
 
