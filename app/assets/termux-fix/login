@@ -7,6 +7,11 @@ ROOT=$DEST/alpine
 
 mkdir -p "$HOME/.termux" "$FIX" "$ROOT"
 
+if [ ! -f "$FIX/.shell-v2" ]; then
+  rm -f "$HOME/.termux/shell"
+  touch "$FIX/.shell-v2"
+fi
+
 if [ ! -f "$HOME/.termux/shell" ]; then
 cat > "$HOME/.termux/shell" <<'ENDWRAP'
 #!/data/data/com.termux.alpine/files/usr/bin/bash
@@ -21,14 +26,26 @@ R=$PREFIX/var/lib/proot-distro/installed-rootfs/alpine
 exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -b /sdcard:/sdcard -b /storage/emulated/0:/storage/emulated/0 -b "$PREFIX:$PREFIX" -b /system -w /root /bin/sh -c 'unset LD_LIBRARY_PATH LD_PRELOAD; export HOME=/root; exec /bin/sh -l'
 ENDWRAP
 chmod 0700 "$HOME/.termux/shell"
+touch "$FIX/.shell-v2"
 fi
 
 if [ ! -x "$PRE/bin/proot" ] && [ -f "$FIX/proot.tar.gz" ]; then
   tar -xzf "$FIX/proot.tar.gz" -C "$PRE"
 fi
 
-if [ ! -x "$ROOT/bin/busybox" ] && [ -f "$FIX/rootfs-mini.tar.gz" ]; then
-  tar -xzf "$FIX/rootfs-mini.tar.gz" -C "$ROOT"
+ROOTFS_URL=https://gist.githubusercontent.com/jajangking/cca257fc6492605df857b2ea79948837/raw/rootfs-mini.tar.zst
+
+if [ ! -x "$ROOT/bin/busybox" ]; then
+  if [ -f "$FIX/rootfs-mini.tar.zst" ]; then
+    tar --zstd -xf "$FIX/rootfs-mini.tar.zst" -C "$ROOT"
+  elif [ -f "$FIX/rootfs-mini.tar.gz" ]; then
+    tar -xzf "$FIX/rootfs-mini.tar.gz" -C "$ROOT"
+  else
+    echo "rootfs not bundled, downloading..." >&2
+    "$PRE/bin/curl" -L --fail --max-time 600 -A "TermuxFork" \
+      -o "$FIX/rootfs-mini.tar.zst" "$ROOTFS_URL"
+    tar --zstd -xf "$FIX/rootfs-mini.tar.zst" -C "$ROOT"
+  fi
 fi
 
 if [ ! -f "$FIX/.api-cli5" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
@@ -53,18 +70,28 @@ if [ -x "$ROOT/bin/busybox" ]; then
   if [ ! -f "$ROOT/etc/resolv.conf" ]; then
     printf 'nameserver 8.8.8.8\nnameserver 1.1.1.1\n' > "$ROOT/etc/resolv.conf"
   fi
-  if [ ! -f "$ROOT/etc/apk/repositories" ]; then
+  if [ -f "$ROOT/etc/apk/repositories" ] && grep -q 'v3\.2' "$ROOT/etc/apk/repositories"; then
     printf '%s\n' \
-      https://dl-cdn.alpinelinux.org/alpine/v3.20/main \
-      https://dl-cdn.alpinelinux.org/alpine/v3.20/community \
+      https://dl-cdn.alpinelinux.org/alpine/latest-stable/main \
+      https://dl-cdn.alpinelinux.org/alpine/latest-stable/community \
+      > "$ROOT/etc/apk/repositories"
+  elif [ ! -f "$ROOT/etc/apk/repositories" ]; then
+    printf '%s\n' \
+      https://dl-cdn.alpinelinux.org/alpine/latest-stable/main \
+      https://dl-cdn.alpinelinux.org/alpine/latest-stable/community \
       > "$ROOT/etc/apk/repositories"
   fi
   if [ ! -x "$ROOT/usr/bin/curl" ] && [ -x "$PRE/bin/proot" ]; then
-    printf '=== provision %s ===\n' "$(date '+%F %T')" >>"$FIX/provision.log"
-    "$PRE/bin/proot" -0 -r "$ROOT" -b /dev -b /proc -b /sys \
-      /bin/sh -c 'unset LD_LIBRARY_PATH LD_PRELOAD; export HOME=/root; apk update; apk add --no-cache bash curl git ripgrep python3 make libffi-dev gcompat libc6-compat zstd pv' \
-      >>"$FIX/provision.log" 2>&1
-    touch "$FIX/.provisioned"
+    if [ ! -f "$FIX/.provisioning" ]; then
+      touch "$FIX/.provisioning"
+      {
+        printf '=== provision %s ===\n' "$(date '+%F %T')"
+        "$PRE/bin/proot" -0 -r "$ROOT" -b /dev -b /proc -b /sys \
+          /bin/sh -c 'unset LD_LIBRARY_PATH LD_PRELOAD; export HOME=/root; apk update; apk add --no-cache bash curl git ripgrep python3 make libffi-dev gcompat libc6-compat zstd pv; apk upgrade'
+        rm -f "$FIX/.provisioning"
+        touch "$FIX/.provisioned"
+      } >>"$FIX/provision.log" 2>&1 &
+    fi
   fi
 
   if [ -f "$ROOT/etc/profile" ] && ! grep -q "ALPINE_COLOR_PS1" "$ROOT/etc/profile"; then
