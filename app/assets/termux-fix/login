@@ -54,6 +54,14 @@ if [ -x "$ROOT/bin/busybox" ]; then
       >>"$FIX/provision.log" 2>&1
     touch "$FIX/.provisioned"
   fi
+
+  if [ -f "$ROOT/etc/profile" ] && ! grep -q "PS1=" "$ROOT/etc/profile"; then
+    {
+      echo
+      echo "# colored prompt: host part in cyan"
+      echo "PS1='\e[0;36m\u@\h\e[0m:\w\$ '"
+    } >> "$ROOT/etc/profile"
+  fi
 fi
 
 export LD_LIBRARY_PATH=$PRE/lib
