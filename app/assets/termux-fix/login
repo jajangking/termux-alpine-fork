@@ -71,6 +71,9 @@ if [ -x "$ROOT/bin/busybox" ]; then
       echo "PS1='\e[0;36m\u@\h\e[0m:\w\$ '"
     } >> "$ROOT/etc/profile"
   fi
+  if [ -f "$ROOT/etc/profile" ] && ! grep -q "$PRE/bin:/system/bin" "$ROOT/etc/profile"; then
+    printf '\nexport PATH="$PATH:%s/bin:/system/bin"\n' "$PRE" >> "$ROOT/etc/profile"
+  fi
 fi
 
 export LD_LIBRARY_PATH=$PRE/lib
