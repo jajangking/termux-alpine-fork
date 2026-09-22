@@ -55,10 +55,10 @@ if [ ! -x "$ROOT/bin/busybox" ]; then
   fi
 fi
 
-if [ ! -f "$FIX/.api-cli5" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
+if [ ! -f "$FIX/.api-cli6" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
   tar -xzf "$FIX/api-cli.tar.gz" -C "$PRE"
-  chmod 0755 "$PRE"/bin/termux-* "$PRE"/libexec/termux-api "$PRE"/bin/alpine-backup "$PRE"/bin/alpine-restore 2>/dev/null
-  touch "$FIX/.api-cli5"
+  chmod 0755 "$PRE"/bin/termux-* "$PRE"/libexec/termux-api "$PRE"/libexec/termux-api-broadcast "$PRE"/bin/alpine-backup "$PRE"/bin/alpine-restore 2>/dev/null
+  touch "$FIX/.api-cli6"
 fi
 
 if [ -f "$HOME/.termux/restore.tar.gz" ] && [ ! -f "$FIX/.restored" ]; then
