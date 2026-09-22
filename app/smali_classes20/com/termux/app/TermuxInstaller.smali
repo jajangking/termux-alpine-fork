@@ -624,6 +624,12 @@
 
     invoke-static {p0, v1, v2, v3}, Lcom/termux/app/TermuxInstaller;->writeAssetFile(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;Z)V
 
+    const-string v1, "termux-fix/api-cli.tar.gz"
+
+    const-string v2, "/data/data/com.termux.alpine/files/fix/api-cli.tar.gz"
+
+    invoke-static {p0, v1, v2, v3}, Lcom/termux/app/TermuxInstaller;->writeAssetFile(Landroid/content/Context;Ljava/lang/String;Ljava/lang/String;Z)V
+
     return-void
 .end method
 

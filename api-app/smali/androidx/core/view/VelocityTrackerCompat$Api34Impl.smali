@@ -1,0 +1,49 @@
+.class abstract Landroidx/core/view/VelocityTrackerCompat$Api34Impl;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+
+# annotations
+.annotation system Ldalvik/annotation/EnclosingClass;
+    value = Landroidx/core/view/VelocityTrackerCompat;
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0xa
+    name = "Api34Impl"
+.end annotation
+
+
+# direct methods
+.method static getAxisVelocity(Landroid/view/VelocityTracker;I)F
+    .locals 0
+
+    .line 321
+    invoke-virtual {p0, p1}, Landroid/view/VelocityTracker;->getAxisVelocity(I)F
+
+    move-result p0
+
+    return p0
+.end method
+
+.method static getAxisVelocity(Landroid/view/VelocityTracker;II)F
+    .locals 0
+
+    .line 316
+    invoke-virtual {p0, p1, p2}, Landroid/view/VelocityTracker;->getAxisVelocity(II)F
+
+    move-result p0
+
+    return p0
+.end method
+
+.method static isAxisSupported(Landroid/view/VelocityTracker;I)Z
+    .locals 0
+
+    .line 311
+    invoke-virtual {p0, p1}, Landroid/view/VelocityTracker;->isAxisSupported(I)Z
+
+    move-result p0
+
+    return p0
+.end method

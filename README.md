@@ -45,8 +45,42 @@ untuk `apk add bash curl git ...` di dalam rootfs). Session pertama memang agak 
 
 ## Riwayat versi
 
-- **v8** — `writeAssetFile` fix + `libtalloc`/`libandroid-shmem` dibundel. Clean install
-  langsung masuk shell Alpine (`PROOT_OK` terverifikasi). Keystore v7.
-- **v7** — `writeAssetFile` fix saja (libs masih ditambal manual via `run-as`).
-- **v6** — fix `nano.postinst` + `update-alternatives --altdir/--admindir` (bootstrap selesai,
-  tapi session mati karena file bake 0 byte).
+- **v13** — wrapper proot bind `$PREFIX` + `/system` ke guest → CLI `termux-*` bisa jalan
+  dari dalam Alpine; `api-cli.tar.gz` (helper terkompil ulang + script tersed) dibake.
+- **v12** — `api-cli.tar.gz` dibake + auto-extract saat provisioning.
+- **v11** — log provisioning ke `fix/provision.log` (tidak lagi dibuang).
+- **v10** — fix `PATH` guest di shell wrapper.
+- **v8** — `writeAssetFile` fix + `libtalloc`/`libandroid-shmem` dibundel. Keystore v7.
+- **v6** — fix `nano.postinst` + `update-alternatives --altdir/--admindir`.
+
+## Alpine API (akses API Android)
+
+`api-app/` = source apktool fork Termux:API (`com.termux.alpine.api`, label "Alpine API").
+Kenapa perlu fork: otentikasi API = `sharedUserId` (socket peer-uid harus sama dengan UID
+app API) + receiver non-exported. Satu-satunya cara: app API pendamping dengan
+`sharedUserId="com.termux.alpine"` + tanda tangan kunci yang sama (v7).
+
+Yang diubah dari API original: `package`, `sharedUserId`, authorities
+(`sharedfiles`, `androidx-startup`), permission `DYNAMIC_...`, nama socket
+(`com.termux.alpine.api://listen`), label. Class Java tidak dipindah.
+
+Helper CLI (`termux-api-broadcast` + symlink `termux-api`) dikompilasi ulang dari
+[source termux-api-package v0.60.0](https://github.com/termux/termux-api-package)
+dengan `PREFIX`, nama socket, dan komponen receiver versi alpine; script `termux-*`
+di-sed prefix-nya. Semua dibundel di `app/assets/termux-fix/api-cli.tar.gz` dan
+otomatis terekstrak saat provisioning.
+
+Build API app (butuh apktool):
+
+```sh
+apktool b api-app -o dist/alpine-api-unsigned.apk
+cp dist/alpine-api-unsigned.apk dist/alpine-api-signed.apk
+jarsigner -keystore keys/fork-alpine-keystore-v7.jks -storepass "$STOREPASS" \
+  -keypass "$KEYPASS" -signedjar dist/alpine-api-signed.apk \
+  dist/alpine-api-unsigned.apk alpine
+```
+
+Install: pasang `dist/alpine-api-signed.apk` berdampingan dengan app utama (jangan
+uninstall `com.termux.api` original — tidak bentrok). Buka sekali, grant permission
+per API sesuai kebutuhan. Tes dari session Alpine: `termux-vibrate -d 200`,
+`termux-toast halo`.

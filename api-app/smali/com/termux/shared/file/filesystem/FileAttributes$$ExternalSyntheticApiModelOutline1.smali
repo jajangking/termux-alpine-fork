@@ -1,0 +1,14 @@
+.class public abstract synthetic Lcom/termux/shared/file/filesystem/FileAttributes$$ExternalSyntheticApiModelOutline1;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+
+# direct methods
+.method public static bridge synthetic m(Landroid/system/StructStat;)Landroid/system/StructTimespec;
+    .locals 0
+
+    .line 0
+    iget-object p0, p0, Landroid/system/StructStat;->st_ctim:Landroid/system/StructTimespec;
+
+    return-object p0
+.end method

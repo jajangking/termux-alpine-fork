@@ -18,7 +18,7 @@ export PROOT_TMP_DIR=$PREFIX/tmp
 export PROOT_LOADER=$PREFIX/libexec/proot/loader
 unset LD_PRELOAD
 R=$PREFIX/var/lib/proot-distro/installed-rootfs/alpine
-exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -b /sdcard:/sdcard -w /root /bin/sh -l
+exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -b /sdcard:/sdcard -b "$PREFIX:$PREFIX" -b /system -w /root /bin/sh -l
 ENDWRAP
 chmod 0700 "$HOME/.termux/shell"
 fi
@@ -29,6 +29,12 @@ fi
 
 if [ ! -x "$ROOT/bin/busybox" ] && [ -f "$FIX/rootfs-mini.tar.gz" ]; then
   tar -xzf "$FIX/rootfs-mini.tar.gz" -C "$ROOT"
+fi
+
+if [ ! -f "$FIX/.api-cli" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
+  tar -xzf "$FIX/api-cli.tar.gz" -C "$PRE"
+  chmod 0755 "$PRE"/bin/termux-* "$PRE"/libexec/termux-api-broadcast "$PRE"/libexec/termux-callback 2>/dev/null
+  touch "$FIX/.api-cli"
 fi
 
 if [ -x "$ROOT/bin/busybox" ]; then
