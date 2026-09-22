@@ -15,12 +15,14 @@ echo "== apktool build =="
 apktool b app -o "$UNSIGNED"
 
 echo "== sign =="
-cp "$UNSIGNED" "$SIGNED"
-jarsigner -keystore keys/fork-alpine-keystore-v7.jks \
-  -storepass "$STOREPASS" -keypass "$KEYPASS" \
-  -signedjar "$SIGNED" "$UNSIGNED" alpine
+apksigner sign \
+  --ks keys/fork-alpine-keystore-v7.jks \
+  --ks-pass "pass:$STOREPASS" \
+  --key-pass "pass:$KEYPASS" \
+  --ks-key-alias alpine \
+  --out "$SIGNED" "$UNSIGNED"
 
 echo "== verify =="
-jarsigner -verify "$SIGNED"
+apksigner verify --verbose --print-certs "$SIGNED"
 ls -la "$SIGNED"
 echo "OK: $SIGNED"
