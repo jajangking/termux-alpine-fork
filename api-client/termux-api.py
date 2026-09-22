@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """termux-api client for the Alpine fork (com.termux.alpine.api).
 
-Talks to the API app over its abstract-namespace listen socket.
-Pure-Python: no bionic loader, no `am` needed (socket-first always).
-Protocol mirrors termux-api-package 0.60.0 (termux-api.c).
+Talks to the API app over its listen socket. Back-connect sockets are
+FILESYSTEM-mode, not abstract: the API app process cannot reliably reach
+an abstract socket bound by a proot guest on this device (Connection
+refused). Filesystem sockets live under $PREFIX/tmp, a path identical in
+guest and host (proot binds "$PREFIX:$PREFIX"), so the server connects to
+the same host path. Protocol mirrors termux-api-package 0.60.0.
 """
 import os
 import sys
@@ -15,6 +18,18 @@ import uuid
 SERVER_ADDR = "com.termux.alpine.api://listen"
 VERSION = "0.60.0"
 ACCEPT_TIMEOUT = 15
+
+
+def socket_dir():
+    """Host-visible directory for back-connect sockets (identity-mapped)."""
+    prefix = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    d = os.environ.get('TMPDIR') or os.path.join(prefix, 'tmp')
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError:
+        d = os.path.join(prefix, 'tmp')
+        os.makedirs(d, exist_ok=True)
+    return d
 
 
 def build_message(argv, in_uuid, out_uuid, pid, uid, starttime):
@@ -132,18 +147,23 @@ def main(argv):
 
     in_uuid = uuid.uuid4().hex
     out_uuid = uuid.uuid4().hex
+    sockdir = socket_dir()
+    in_path = os.path.join(sockdir, 'api-in-%s.sock' % in_uuid)
+    out_path = os.path.join(sockdir, 'api-out-%s.sock' % out_uuid)
 
     ins = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    ins.bind('\0' + in_uuid)
+    ins.bind(in_path)
+    os.chmod(in_path, 0o666)
     ins.listen(1)
     outs = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    outs.bind('\0' + out_uuid)
+    outs.bind(out_path)
+    os.chmod(out_path, 0o666)
     outs.listen(1)
 
     ppid = os.getppid()
     uid = real_uid()
     starttime = proc_starttime(ppid)
-    msg = build_message(argv, in_uuid, out_uuid, ppid, uid, starttime)
+    msg = build_message(argv, in_path, out_path, ppid, uid, starttime)
 
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
@@ -212,6 +232,12 @@ def main(argv):
     got_fd = pump_sock_to_stdout(in_conn) if in_conn is not None else -1
     if t is not None:
         t.join(timeout=5)
+
+    for p in (in_path, out_path):
+        try:
+            os.unlink(p)
+        except OSError:
+            pass
 
     # Callback equivalent: dump any passed fd to stdout, in-process.
     if got_fd != -1:
