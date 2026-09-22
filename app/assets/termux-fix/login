@@ -31,10 +31,19 @@ if [ ! -x "$ROOT/bin/busybox" ] && [ -f "$FIX/rootfs-mini.tar.gz" ]; then
   tar -xzf "$FIX/rootfs-mini.tar.gz" -C "$ROOT"
 fi
 
-if [ ! -f "$FIX/.api-cli2" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
+if [ ! -f "$FIX/.api-cli3" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
   tar -xzf "$FIX/api-cli.tar.gz" -C "$PRE"
-  chmod 0755 "$PRE"/bin/termux-* "$PRE"/libexec/termux-api 2>/dev/null
-  touch "$FIX/.api-cli2"
+  chmod 0755 "$PRE"/bin/termux-* "$PRE"/libexec/termux-api "$PRE"/bin/alpine-backup "$PRE"/bin/alpine-restore 2>/dev/null
+  touch "$FIX/.api-cli3"
+fi
+
+if [ -f "$HOME/.termux/restore.tar.gz" ] && [ ! -f "$FIX/.restored" ]; then
+  printf '=== restore %s ===\n' "$(date '+%F %T')" >>"$FIX/restore.log"
+  rm -rf "$ROOT"
+  mkdir -p "$ROOT"
+  tar -xzf "$HOME/.termux/restore.tar.gz" -C "$ROOT" 2>/dev/null
+  mv "$HOME/.termux/restore.tar.gz" "$HOME/.termux/restore-done-$(date '+%s').tar.gz"
+  touch "$FIX/.restored"
 fi
 
 if [ -x "$ROOT/bin/busybox" ]; then
