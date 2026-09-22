@@ -31,17 +31,20 @@ if [ ! -x "$ROOT/bin/busybox" ] && [ -f "$FIX/rootfs-mini.tar.gz" ]; then
   tar -xzf "$FIX/rootfs-mini.tar.gz" -C "$ROOT"
 fi
 
-if [ ! -f "$FIX/.api-cli3" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
+if [ ! -f "$FIX/.api-cli4" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
   tar -xzf "$FIX/api-cli.tar.gz" -C "$PRE"
   chmod 0755 "$PRE"/bin/termux-* "$PRE"/libexec/termux-api "$PRE"/bin/alpine-backup "$PRE"/bin/alpine-restore 2>/dev/null
-  touch "$FIX/.api-cli3"
+  touch "$FIX/.api-cli4"
 fi
 
 if [ -f "$HOME/.termux/restore.tar.gz" ] && [ ! -f "$FIX/.restored" ]; then
   printf '=== restore %s ===\n' "$(date '+%F %T')" >>"$FIX/restore.log"
   rm -rf "$ROOT"
   mkdir -p "$ROOT"
-  tar -xzf "$HOME/.termux/restore.tar.gz" -C "$ROOT" 2>/dev/null
+  case "$HOME/.termux/restore.tar.gz" in
+    *.zst|*.tar.zst) tar --zstd -xf "$HOME/.termux/restore.tar.gz" -C "$ROOT" 2>/dev/null ;;
+    *) tar -xzf "$HOME/.termux/restore.tar.gz" -C "$ROOT" 2>/dev/null ;;
+  esac
   mv "$HOME/.termux/restore.tar.gz" "$HOME/.termux/restore-done-$(date '+%s').tar.gz"
   touch "$FIX/.restored"
 fi
@@ -59,17 +62,15 @@ if [ -x "$ROOT/bin/busybox" ]; then
   if [ ! -x "$ROOT/usr/bin/curl" ] && [ -x "$PRE/bin/proot" ]; then
     printf '=== provision %s ===\n' "$(date '+%F %T')" >>"$FIX/provision.log"
     "$PRE/bin/proot" -0 -r "$ROOT" -b /dev -b /proc -b /sys \
-      /bin/sh -c 'unset LD_LIBRARY_PATH LD_PRELOAD; export HOME=/root; apk update; apk add --no-cache bash curl git ripgrep python3 make libffi-dev gcompat libc6-compat' \
+      /bin/sh -c 'unset LD_LIBRARY_PATH LD_PRELOAD; export HOME=/root; apk update; apk add --no-cache bash curl git ripgrep python3 make libffi-dev gcompat libc6-compat zstd pv' \
       >>"$FIX/provision.log" 2>&1
     touch "$FIX/.provisioned"
   fi
 
-  if [ -f "$ROOT/etc/profile" ] && ! grep -q "PS1=" "$ROOT/etc/profile"; then
-    {
-      echo
-      echo "# colored prompt: host part in cyan"
-      echo "PS1='\e[0;36m\u@\h\e[0m:\w\$ '"
-    } >> "$ROOT/etc/profile"
+  if [ -f "$ROOT/etc/profile" ] && ! grep -q "ALPINE_COLOR_PS1" "$ROOT/etc/profile"; then
+    ESC=$(printf '\033')
+    printf 'PS1="%s[1;36m\\h%s[0m:\\w\\$ "\n' "$ESC" "$ESC" >> "$ROOT/etc/profile"
+    printf '# ALPINE_COLOR_PS1\n' >> "$ROOT/etc/profile"
   fi
   if [ -f "$ROOT/etc/profile" ] && ! grep -q "$PRE/bin:/system/bin" "$ROOT/etc/profile"; then
     printf '\nexport PATH="$PATH:%s/bin:/system/bin"\n' "$PRE" >> "$ROOT/etc/profile"
