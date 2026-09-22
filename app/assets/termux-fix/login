@@ -18,7 +18,7 @@ export PROOT_TMP_DIR=$PREFIX/tmp
 export PROOT_LOADER=$PREFIX/libexec/proot/loader
 unset LD_PRELOAD
 R=$PREFIX/var/lib/proot-distro/installed-rootfs/alpine
-exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -b /sdcard:/sdcard -b "$PREFIX:$PREFIX" -b /system -w /root /bin/sh -l
+exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -b /sdcard:/sdcard -b "$PREFIX:$PREFIX" -b /system -w /root /bin/sh -c 'unset LD_LIBRARY_PATH LD_PRELOAD; export HOME=/root; exec /bin/sh -l'
 ENDWRAP
 chmod 0700 "$HOME/.termux/shell"
 fi
@@ -38,7 +38,9 @@ if [ ! -f "$FIX/.api-cli2" ] && [ -f "$FIX/api-cli.tar.gz" ]; then
 fi
 
 if [ -x "$ROOT/bin/busybox" ]; then
-  printf 'nameserver 8.8.8.8\nnameserver 1.1.1.1\n' > "$ROOT/etc/resolv.conf"
+  if [ ! -f "$ROOT/etc/resolv.conf" ]; then
+    printf 'nameserver 8.8.8.8\nnameserver 1.1.1.1\n' > "$ROOT/etc/resolv.conf"
+  fi
   if [ ! -f "$ROOT/etc/apk/repositories" ]; then
     printf '%s\n' \
       https://dl-cdn.alpinelinux.org/alpine/v3.20/main \
@@ -48,7 +50,7 @@ if [ -x "$ROOT/bin/busybox" ]; then
   if [ ! -x "$ROOT/usr/bin/curl" ] && [ -x "$PRE/bin/proot" ]; then
     printf '=== provision %s ===\n' "$(date '+%F %T')" >>"$FIX/provision.log"
     "$PRE/bin/proot" -0 -r "$ROOT" -b /dev -b /proc -b /sys \
-      /bin/sh -c 'apk update; apk add --no-cache bash curl git ripgrep python3 make libffi-dev gcompat libc6-compat' \
+      /bin/sh -c 'unset LD_LIBRARY_PATH LD_PRELOAD; export HOME=/root; apk update; apk add --no-cache bash curl git ripgrep python3 make libffi-dev gcompat libc6-compat' \
       >>"$FIX/provision.log" 2>&1
     touch "$FIX/.provisioned"
   fi

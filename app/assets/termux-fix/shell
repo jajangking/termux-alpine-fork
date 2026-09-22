@@ -7,4 +7,4 @@ export PROOT_TMP_DIR=$PREFIX/tmp
 export PROOT_LOADER=$PREFIX/libexec/proot/loader
 unset LD_PRELOAD
 R=$PREFIX/var/lib/proot-distro/installed-rootfs/alpine
-exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -b /sdcard:/sdcard -b "$PREFIX:$PREFIX" -b /system -w /root /bin/sh -l
+exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -b /sdcard:/sdcard -b "$PREFIX:$PREFIX" -b /system -w /root /bin/sh -c 'unset LD_LIBRARY_PATH LD_PRELOAD; export HOME=/root; exec /bin/sh -l'
