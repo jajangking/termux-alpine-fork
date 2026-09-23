@@ -7,9 +7,9 @@ ROOT=$DEST/alpine
 
 mkdir -p "$HOME/.termux" "$FIX" "$ROOT"
 
-if [ ! -f "$FIX/.shell-v2" ]; then
+if [ ! -f "$FIX/.shell-v3" ]; then
   rm -f "$HOME/.termux/shell"
-  touch "$FIX/.shell-v2"
+  touch "$FIX/.shell-v3"
 fi
 
 if [ ! -f "$HOME/.termux/shell" ]; then
@@ -23,10 +23,10 @@ export PROOT_TMP_DIR=$PREFIX/tmp
 export PROOT_LOADER=$PREFIX/libexec/proot/loader
 unset LD_PRELOAD
 R=$PREFIX/var/lib/proot-distro/installed-rootfs/alpine
-exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -b /sdcard:/sdcard -b /storage/emulated/0:/storage/emulated/0 -b "$PREFIX:$PREFIX" -b /system -w /root /bin/sh -c 'unset LD_LIBRARY_PATH LD_PRELOAD; export HOME=/root; exec /bin/sh -l'
+exec "$PREFIX/bin/proot" -0 -r "$R" -b /dev -b /proc -b /sys -b "$R/tmp:/tmp" -b "$HOME:/root" -b /sdcard:/sdcard -b /storage/emulated/0:/storage/emulated/0 -b "$PREFIX:$PREFIX" -b /system -w /root /bin/sh -c 'unset LD_LIBRARY_PATH LD_PRELOAD; for _v in $(env | cut -d= -f1); do case "$_v" in TERMUX_*) unset "$_v";; esac; done; export HOME=/root; exec /bin/sh -l'
 ENDWRAP
 chmod 0700 "$HOME/.termux/shell"
-touch "$FIX/.shell-v2"
+touch "$FIX/.shell-v3"
 fi
 
 if [ ! -x "$PRE/bin/proot" ] && [ -f "$FIX/proot.tar.gz" ]; then
